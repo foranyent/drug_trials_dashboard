@@ -137,19 +137,38 @@ def fetch_trials(expr: str, max_rnk: int = 100):
 # Fetch Related News Articles
 # ============================================================
 def fetch_articles(drug_term: str, condition_term: str = ""):
-    query_parts = [drug_term, condition_term, "clinical trial"]
-    query = "+".join([p.replace(" ", "+") for p in query_parts if p])
+    # Safety fallback if empty
+    if not drug_term and not condition_term:
+        return []
 
+    search_terms = []
+
+    if drug_term and drug_term.strip() != "":
+        search_terms.append(drug_term)
+
+    if condition_term and condition_term.strip() != "":
+        search_terms.append(condition_term)
+
+    search_terms.append("clinical trial")
+
+    query = "+".join([t.replace(" ", "+") for t in search_terms])
     url = f"https://news.google.com/rss/search?q={query}"
-    feed = feedparser.parse(url)
+
+    # --- FIX: Add browser user-agent so Google News doesn't block Streamlit Cloud ---
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    resp = requests.get(url, headers=headers, timeout=10)
+    feed = feedparser.parse(resp.text)
 
     articles = []
     for entry in feed.entries[:5]:
+        summary = clean_html(getattr(entry, "summary", ""))[:260]
         articles.append({
             "title": entry.title,
             "link": entry.link,
             "published": getattr(entry, "published", ""),
-            "summary": clean_html(getattr(entry, "summary", ""))[:260],
+            "summary": summary,
         })
     return articles
 
