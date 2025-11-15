@@ -136,41 +136,69 @@ def fetch_trials(expr: str, max_rnk: int = 100):
 # ============================================================
 # Fetch Related News Articles
 # ============================================================
+import urllib.parse
+
 def fetch_articles(drug_term: str, condition_term: str = ""):
-    # Safety fallback if empty
-    if not drug_term and not condition_term:
+    # Build safe search terms
+    terms = []
+
+    if drug_term and isinstance(drug_term, str):
+        terms.append(drug_term.strip())
+
+    if condition_term and isinstance(condition_term, str):
+        terms.append(condition_term.strip())
+
+    # Always anchor with this
+    terms.append("clinical trial")
+
+    # Filter empty items
+    terms = [t for t in terms if t]
+
+    # If nothing valid left
+    if not terms:
         return []
 
-    search_terms = []
+    # SAFE URL encoding
+    query = " ".join(terms)
+    query_encoded = urllib.parse.quote_plus(query)
 
-    if drug_term and drug_term.strip() != "":
-        search_terms.append(drug_term)
+    # Streamlit Cloud-safe Google News RSS parameters
+    url = (
+        "https://news.google.com/rss/search?"
+        f"q={query_encoded}"
+        "&hl=en-US"        # required for Cloud
+        "&gl=US"           # required for Cloud
+        "&ceid=US:en"      # forces proper region feed
+    )
 
-    if condition_term and condition_term.strip() != "":
-        search_terms.append(condition_term)
-
-    search_terms.append("clinical trial")
-
-    query = "+".join([t.replace(" ", "+") for t in search_terms])
-    url = f"https://news.google.com/rss/search?q={query}"
-
-    # --- FIX: Add browser user-agent so Google News doesn't block Streamlit Cloud ---
+    # Proper headers
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
     }
-    resp = requests.get(url, headers=headers, timeout=10)
-    feed = feedparser.parse(resp.text)
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.text)
+    except Exception as e:
+        return []
 
     articles = []
     for entry in feed.entries[:5]:
-        summary = clean_html(getattr(entry, "summary", ""))[:260]
+        try:
+            summary = clean_html(getattr(entry, "summary", ""))[:260]
+        except:
+            summary = ""
+
         articles.append({
             "title": entry.title,
             "link": entry.link,
             "published": getattr(entry, "published", ""),
             "summary": summary,
         })
+
     return articles
+
 
 
 # ============================================================
