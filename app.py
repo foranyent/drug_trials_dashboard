@@ -139,57 +139,38 @@ def fetch_trials(expr: str, max_rnk: int = 100):
 import urllib.parse
 
 def fetch_articles(drug_term: str, condition_term: str = ""):
-    # Build safe search terms
+    # Build search string
     terms = []
-
     if drug_term and isinstance(drug_term, str):
         terms.append(drug_term.strip())
-
     if condition_term and isinstance(condition_term, str):
         terms.append(condition_term.strip())
-
-    # Always anchor with this
     terms.append("clinical trial")
 
-    # Filter empty items
-    terms = [t for t in terms if t]
-
-    # If nothing valid left
-    if not terms:
+    query = " ".join([t for t in terms if t])
+    if not query:
         return []
 
-    # SAFE URL encoding
-    query = " ".join(terms)
+    # Encode safely for URL
     query_encoded = urllib.parse.quote_plus(query)
 
-    # Streamlit Cloud-safe Google News RSS parameters
-    url = (
-        "https://news.google.com/rss/search?"
-        f"q={query_encoded}"
-        "&hl=en-US"        # required for Cloud
-        "&gl=US"           # required for Cloud
-        "&ceid=US:en"      # forces proper region feed
-    )
+    # Bing News RSS (very reliable on Streamlit Cloud)
+    url = f"https://www.bing.com/news/search?q={query_encoded}&format=rss"
 
-    # Proper headers
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": "Mozilla/5.0"
     }
 
     try:
         resp = requests.get(url, headers=headers, timeout=10)
         resp.raise_for_status()
         feed = feedparser.parse(resp.text)
-    except Exception as e:
+    except:
         return []
 
     articles = []
     for entry in feed.entries[:5]:
-        try:
-            summary = clean_html(getattr(entry, "summary", ""))[:260]
-        except:
-            summary = ""
-
+        summary = clean_html(getattr(entry, "summary", ""))[:260]
         articles.append({
             "title": entry.title,
             "link": entry.link,
@@ -198,6 +179,7 @@ def fetch_articles(drug_term: str, condition_term: str = ""):
         })
 
     return articles
+
 
 
 
